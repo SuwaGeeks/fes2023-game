@@ -7,6 +7,7 @@ using System.IO;
 using System;
 using PlayFab;
 using PlayFab.ClientModels;
+using Unity.Collections;
 
 public class UIController : MonoBehaviour
 {
@@ -44,11 +45,21 @@ public class UIController : MonoBehaviour
 
     public Sprite img;
 
+
+
+    private bool playFabBool = true;
+    public Text ranking;
+
     // Start is called before the first frame update
     void Start()
     {
+        NativeLeakDetection.Mode = NativeLeakDetectionMode.EnabledWithStackTrace;
+
+
+
+
         /*最初のUIのアクティブ設定*/
-            /*UserUIをアクティブ化*/
+        /*UserUIをアクティブ化*/
         UserUI.SetActive(true);
             /*ResultUIを非アクティブ化*/
         ResultUI.SetActive(false);
@@ -68,7 +79,6 @@ public class UIController : MonoBehaviour
 
 
 
-        
     }
 
     // Update is called once per frame
@@ -89,6 +99,14 @@ public class UIController : MonoBehaviour
             UserUI.SetActive(false);
                 /*ResultUIをアクティブ化*/
             ResultUI.SetActive(true);
+
+
+
+
+
+
+
+
             
             /*結果のスコアをTextに表示*/
             resultScoreText.text = CalcScore() + "m";
@@ -108,41 +126,70 @@ public class UIController : MonoBehaviour
 
 
 
+            if (playFabBool)
+            {
+                PlayFabClientAPI.LoginWithCustomID(new LoginWithCustomIDRequest
+                {
+                    CustomId = TitleController.userName.text,
+                    CreateAccount = true
+                }
+                , result =>
+                {
+                    Debug.Log("Success LOGIN");
+                    UpdateUserName();
+                    UpdatePlayerStatistics();
+                    GetLeaderboard();
+                    GetLeaderboardAroundPlayer();
+                    ranking.text = $"Score:  {CalcScore()}\n";
+                }
+                , error =>
+                {
+                    Debug.Log(error.GenerateErrorReport());
+                });
 
 
-
+                playFabBool = false;
+            }
 
             /*コメントつけろ！*/
-            PlayFabClientAPI.LoginWithCustomID(
-            new LoginWithCustomIDRequest
+            /*if (playFabBool)
             {
-                TitleId = PlayFabSettings.TitleId,
-                CustomId = TitleController.userName.text,
-                CreateAccount = true,
-            }
-            , result =>
-            {
-                Debug.Log("ログイン成功！");
-                PlayFabController.SubmitScore(CalcScore());
-            }
-            , errorCallback =>
-            {
-                Debug.Log("ログイン失敗！");
-            });
-
-            PlayFabClientAPI.GetLeaderboard(new GetLeaderboardRequest
-            {
-                StatisticName = "HighScore"
-            }, result =>
-            {
-                foreach (var item in result.Leaderboard)
+                PlayFabClientAPI.LoginWithCustomID(
+                new LoginWithCustomIDRequest
                 {
-                    item.DisplayName = TitleController.userName.text;
+                    TitleId = PlayFabSettings.TitleId,
+                    CustomId = TitleController.userName.text,
+                    CreateAccount = true,
                 }
-            }, error =>
-            {
-                Debug.Log(error.GenerateErrorReport());
-            });
+                , result =>
+                {
+                    Debug.Log("ログイン成功！");
+                    SubmitScore(CalcScore());
+                    GetLeaderboard();
+                    GetLeaderboardAroundPlayer();
+                }
+                , errorCallback =>
+                {
+                    Debug.Log("ログイン失敗！");
+                });
+
+                PlayFabClientAPI.GetLeaderboard(new GetLeaderboardRequest
+                {
+                    StatisticName = "HighScore"
+                }, result =>
+                {
+                    foreach (var item in result.Leaderboard)
+                    {
+                        item.DisplayName = TitleController.userName.text;
+                    }
+                }, error =>
+                {
+                    Debug.Log(error.GenerateErrorReport());
+                });
+
+
+                playFabBool = false;
+            }*/
         }
 
         // マウスの右クリックでツイート画面を開く場合
@@ -170,7 +217,7 @@ public class UIController : MonoBehaviour
     public void OnRestartButtonClicked()
     {
         /*Mainシーン(同じシーン)に切り替え*/
-        SceneManager.LoadScene("Main");
+        SceneManager.LoadScene("Main_Sinpusai");
         
     }
 
@@ -254,4 +301,176 @@ public class UIController : MonoBehaviour
                                     Application.OpenURL(url);
         #endif*/
     }
+
+
+
+
+    /*ユーザーネームの更新*/
+    public void UpdateUserName()
+    {
+        //ユーザ名を指定して、UpdateUserTitleDisplayNameRequestのインスタンスを生成
+        var request = new UpdateUserTitleDisplayNameRequest
+        {
+            DisplayName = TitleController.userName.text
+        };
+
+        //ユーザ名の更新
+        Debug.Log($"ユーザ名の更新開始");
+        PlayFabClientAPI.UpdateUserTitleDisplayName(request, OnUpdateUserNameSuccess, OnUpdateUserNameFailure);
+    }
+
+    //ユーザ名の更新成功
+    private void OnUpdateUserNameSuccess(UpdateUserTitleDisplayNameResult result)
+    {
+        //result.DisplayNameに更新した後のユーザ名が入ってる
+        Debug.Log($"ユーザ名の更新が成功しました : {result.DisplayName}");
+    }
+
+    //ユーザ名の更新失敗
+    private void OnUpdateUserNameFailure(PlayFabError error)
+    {
+        Debug.LogError($"ユーザ名の更新に失敗しました\n{error.GenerateErrorReport()}");
+    }
+
+
+
+    /*スコアの更新*/
+    public void UpdatePlayerStatistics()
+    {
+        //UpdatePlayerStatisticsRequestのインスタンスを生成
+        var request = new UpdatePlayerStatisticsRequest
+        {
+            Statistics = new List<StatisticUpdate>{
+        new StatisticUpdate{
+          StatisticName = "HighScore",   //ランキング名(統計情報名)
+          Value = CalcScore(), //スコア(int)
+        }
+      }
+        };
+
+        //ユーザ名の更新
+        Debug.Log($"スコア(統計情報)の更新開始");
+        PlayFabClientAPI.UpdatePlayerStatistics(request, OnUpdatePlayerStatisticsSuccess, OnUpdatePlayerStatisticsFailure);
+    }
+
+    //スコア(統計情報)の更新成功
+    private void OnUpdatePlayerStatisticsSuccess(UpdatePlayerStatisticsResult result)
+    {
+        Debug.Log($"スコア(統計情報)の更新が成功しました");
+    }
+
+    //スコア(統計情報)の更新失敗
+    private void OnUpdatePlayerStatisticsFailure(PlayFabError error)
+    {
+        Debug.LogError($"スコア(統計情報)更新に失敗しました\n{error.GenerateErrorReport()}");
+    }
+
+
+
+
+    public static void SubmitScore(int playerScore)
+    {
+        PlayFabClientAPI.UpdatePlayerStatistics(new UpdatePlayerStatisticsRequest
+        {
+            Statistics = new List<StatisticUpdate>
+            {
+                new StatisticUpdate
+                {
+                    StatisticName = "HighScore",
+                    Value = playerScore
+                }
+            }
+        }, result =>
+        {
+            Debug.Log($"スコア {playerScore} 送信完了！");
+        }, error =>
+        {
+            Debug.Log(error.GenerateErrorReport());
+        });
+    }
+
+
+    
+
+
+
+
+
+
+
+
+    public void GetLeaderboard()
+    {
+        //GetLeaderboardRequestのインスタンスを生成
+        var request = new GetLeaderboardRequest
+        {
+            StatisticName = "HighScore", //ランキング名(統計情報名)
+            StartPosition = 0,                 //何位以降のランキングを取得するか
+            MaxResultsCount = 5                  //ランキングデータを何件取得するか(最大100)
+        };
+
+
+
+        /*OnGetLeaderboardSuccess(new GetLeaderboardResult a){
+            a=
+        }*/
+
+        //ランキング(リーダーボード)を取得
+        Debug.Log($"ランキング(リーダーボード)の取得開始");
+        PlayFabClientAPI.GetLeaderboard(request, OnGetLeaderboardSuccess, OnGetLeaderboardFailure);
+    }
+
+    //ランキング(リーダーボード)の取得成功
+    private void OnGetLeaderboardSuccess(GetLeaderboardResult result)
+    {
+        Debug.Log($"ランキング(リーダーボード)の取得に成功しました");
+        ranking.text += "\nランキング\n";
+
+        //result.Leaderboardに各順位の情報(PlayerLeaderboardEntry)が入っている
+        foreach (var entry in result.Leaderboard)
+        {
+            ranking.text += $"{entry.Position+1}位:{entry.StatValue}   {entry.DisplayName}\n";
+        }
+    }
+
+    //ランキング(リーダーボード)の取得失敗
+    private void OnGetLeaderboardFailure(PlayFabError error)
+    {
+        Debug.LogError($"ランキング(リーダーボード)の取得に失敗しました\n{error.GenerateErrorReport()}");
+    }
+
+
+    public void GetLeaderboardAroundPlayer()
+    {
+        //GetLeaderboardAroundPlayerRequestのインスタンスを生成
+        var request = new GetLeaderboardAroundPlayerRequest
+        {
+            StatisticName = "HighScore", //ランキング名(統計情報名)
+            MaxResultsCount = 1                  //自分を含め前後何件取得するか
+        };
+
+        //自分の順位周辺のランキング(リーダーボード)を取得
+        Debug.Log($"自分の順位周辺のランキング(リーダーボード)の取得開始");
+        PlayFabClientAPI.GetLeaderboardAroundPlayer(request, OnGetLeaderboardAroundPlayerSuccess, OnGetLeaderboardAroundPlayerFailure);
+    }
+
+    //自分の順位周辺のランキング(リーダーボード)の取得成功
+    private void OnGetLeaderboardAroundPlayerSuccess(GetLeaderboardAroundPlayerResult result)
+    {
+        Debug.Log($"自分の順位周辺のランキング(リーダーボード)の取得に成功しました");
+
+        //result.Leaderboardに各順位の情報(PlayerLeaderboardEntry)が入っている
+        foreach (var entry in result.Leaderboard)
+        {
+            ranking.text += "\nあなたの順位\n";
+            ranking.text += $"{entry.Position+1}位:{entry.StatValue}  {entry.DisplayName}\n";
+        }
+    }
+
+    //自分の順位周辺のランキング(リーダーボード)の取得失敗
+    private void OnGetLeaderboardAroundPlayerFailure(PlayFabError error)
+    {
+        Debug.LogError($"自分の順位周辺のランキング(リーダーボード)の取得に失敗しました\n{error.GenerateErrorReport()}");
+    }
+
 }

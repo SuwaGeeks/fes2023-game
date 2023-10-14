@@ -19,24 +19,5 @@ public class PlayFabController : MonoBehaviour
         
     }
 
-    public static void SubmitScore(int playerScore)
-    {
-        PlayFabClientAPI.UpdatePlayerStatistics(new UpdatePlayerStatisticsRequest
-        {
-            Statistics = new List<StatisticUpdate>
-            {
-                new StatisticUpdate
-                {
-                    StatisticName = "HighScore",
-                    Value = playerScore
-                }
-            }
-        }, result =>
-        {
-            Debug.Log($"スコア {playerScore} 送信完了！");
-        }, error =>
-        {
-            Debug.Log(error.GenerateErrorReport());
-        });
-    }
+    
 }
